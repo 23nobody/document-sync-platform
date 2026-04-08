@@ -74,3 +74,199 @@ used for restart continuity.
 
 - Class definitions/interactions: `docs/CLASS_OVERVIEW.md`
 - Operations and recovery: `docs/OPERATIONS_RUNBOOK.md`
+
+## Canonical output format
+
+Current canonical model (`CanonicalDocument`) contains:
+
+- `tenantId` (`String`)
+- `canonicalPath` (`String`)
+- `fields` (`Map<String, Object>`)
+
+For person-profile style data, the canonical payload in `fields` should follow
+this normalized structure:
+
+```json
+{
+  "entity_type": "person_profile",
+  "person": {
+    "name": {
+      "first": "John",
+      "last": "Michel",
+      "full": "John Michel"
+    },
+    "education": [
+      {
+        "degree_type": "masters",
+        "institution": {
+          "name": "University Name",
+          "country": "USA",
+          "state": "CA"
+        },
+        "primary_subject": "Computer science",
+        "secondary_subjects": ["Maths", "Business Accounts"]
+      }
+    ],
+    "experience": [
+      {
+        "start_date": "2002-11-10",
+        "end_date": "2006-06-12",
+        "title": "Software Engineer",
+        "organization": {
+          "name": "IBM",
+          "country": "USA",
+          "state": "CA",
+          "city": "SFO"
+        }
+      }
+    ],
+    "skills": [
+      {
+        "category": "programming_language",
+        "values": ["java", "python"]
+      }
+    ]
+  }
+}
+```
+
+### Example mapping: input shape A -> canonical
+
+```json
+{
+  "entity_type": "person_profile",
+  "person": {
+    "name": {
+      "first": "John",
+      "last": "Michel",
+      "full": "John Michel"
+    },
+    "education": [
+      {
+        "degree_type": "masters",
+        "institution": {
+          "name": "San Jose State University",
+          "country": "USA",
+          "state": "CA"
+        },
+        "primary_subject": "Computer science",
+        "secondary_subjects": ["Maths", "Business Accounts"]
+      },
+      {
+        "degree_type": "bachelors",
+        "institution": {
+          "name": "San Jose State University",
+          "country": "USA",
+          "state": "CA"
+        },
+        "primary_subject": "Maths",
+        "secondary_subjects": ["Computer Science", "Physics"]
+      }
+    ],
+    "experience": [
+      {
+        "start_date": "2002-11-10",
+        "end_date": "2006-06-12",
+        "title": "Software Engineer",
+        "organization": {
+          "name": "IBM",
+          "country": "USA",
+          "state": "CA",
+          "city": "SFO"
+        }
+      },
+      {
+        "start_date": "2006-06-20",
+        "end_date": "2021-11-12",
+        "title": "Senior Software Engineer",
+        "organization": {
+          "name": "Microsoft",
+          "country": "USA",
+          "state": "CA",
+          "city": "SFO"
+        }
+      }
+    ],
+    "skills": [
+      {"category": "uncategorized", "values": ["java", "python"]},
+      {"category": "databases", "values": ["Databases"]},
+      {"category": "others", "values": ["Distributed Systems"]}
+    ]
+  }
+}
+```
+
+### Example mapping: input shape B -> canonical
+
+```json
+{
+  "entity_type": "person_profile",
+  "person": {
+    "name": {
+      "first": "John",
+      "last": "Michel",
+      "full": "John Michel"
+    },
+    "education": [
+      {
+        "degree_type": "masters",
+        "institution": {
+          "name": "California University of Pennsylvania",
+          "country": "USA",
+          "state": "CA"
+        },
+        "primary_subject": "Computer science",
+        "secondary_subjects": ["Maths", "Business Accounts"]
+      },
+      {
+        "degree_type": "bachelors",
+        "institution": {
+          "name": "Indian Institute of Technology",
+          "country": "INDIA",
+          "state": "Tamil Nadu"
+        },
+        "primary_subject": "Computer Science",
+        "secondary_subjects": ["Maths", "English"]
+      }
+    ],
+    "experience": [
+      {
+        "start_date": "2001-07-15",
+        "end_date": "2005-09-12",
+        "title": "SE II",
+        "organization": {
+          "name": "google",
+          "country": "USA",
+          "state": "CA",
+          "city": "SFO"
+        }
+      },
+      {
+        "start_date": "2005-10-01",
+        "end_date": "2021-03-11",
+        "title": "Principal Engineer",
+        "organization": {
+          "name": "uber",
+          "country": "USA",
+          "state": "CA",
+          "city": "SFO"
+        }
+      }
+    ],
+    "skills": [
+      {"category": "programming_language", "values": ["Go", "python"]},
+      {"category": "databases", "values": ["MySQL", "Postgres", "Oracle"]},
+      {
+        "category": "others",
+        "values": [
+          "Software Engineering",
+          "Distributed Systems",
+          "Cloud services",
+          "Datastructures",
+          "Algorithms"
+        ]
+      }
+    ]
+  }
+}
+```
