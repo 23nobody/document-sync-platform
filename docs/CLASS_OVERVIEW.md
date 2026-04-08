@@ -1,126 +1,132 @@
 # Class Overview
 
-This document explains how classes are organized and how they interact in the
-current codebase.
+This document lists current class definitions and runtime interactions in
+`com.acme.docsync`.
 
 ## Package structure
 
-- `app`:
-  - Startup wiring and module initialization.
-- `model`:
-  - Core domain records/enums/exceptions shared across modules.
-- `storage`:
-  - Tenant-safe path and storage abstractions.
-- `sync`:
-  - Event ingestion path, watcher integration, queue/pipeline, reconciliation.
-- `metadata`:
-  - Directory metadata profiling, fingerprinting, and versioned registry.
-- `format`:
-  - Format plugin contracts and parse exceptions.
-- `transform`:
-  - Canonical transformation contracts and exceptions.
+- `app`: startup wiring and dependency assembly.
+- `model`: domain records, enums, and typed exceptions.
+- `storage`: file-backed stores and tenant/path safety primitives.
+- `sync`: watcher ingress, queue/pipeline, reconciliation, runtime health.
+- `metadata`: directory profiling, fingerprinting, profile registry.
+- `format`: plugin interfaces, detection contracts, parse errors.
+- `transform`: canonical transform chain and publish/delete coordinators.
 
-## Core classes by area
+## 1) Ingestion and path safety (`model`, `storage`, `sync`)
 
-## 1) Ingestion contract and validation (`model`, `storage`, `sync`)
+- `IngestionContract`: normalized event envelope for ingestion.
+- `IngestionOperation`: operation enum (`ADD`, `EDIT`, `DELETE`).
+- `IngestionContractValidator`: normalization + required-field validation.
+- `IngestionValidationException`: typed validation failure.
+- `TenantPathPolicy`: tenant ID and path traversal guardrails.
+- `TenantPathResolver`: tenant-scoped root/path resolver.
+- `EventOrderingResolver`: deterministic ordering comparator.
+- `DocumentEvent`: file-level change event used by detector abstractions.
+- `ChangeDetector`: polling contract that returns `Stream<DocumentEvent>`.
+- `TenantStorage`: tenant-isolated listing contract.
 
-- `IngestionContract`:
-  - Normalized event contract:
-    `tenantId`, `path`, `operation`, `etagOrVersion`, `timestamp`, trace fields.
-- `IngestionOperation`:
-  - `ADD`, `EDIT`, `DELETE`.
-- `IngestionContractValidator`:
-  - Validates required fields and normalizes tenant/path.
-- `IngestionValidationException`:
-  - Typed validation/runtime error for ingestion safety.
-- `TenantPathPolicy`:
-  - Tenant ID rules and relative-path traversal checks.
-- `TenantPathResolver`:
-  - Resolves tenant-scoped source/canonical filesystem paths.
-- `EventOrderingResolver`:
-  - Deterministic timestamp-based ordering comparator.
+## 2) Watcher ingress and processing (`sync`)
 
-## 2) Near-real-time sync path (`sync`)
+- `RawWatcherEvent`: raw watcher event model (`CREATE`, `MODIFY`, `DELETE`).
+- `FileWatcherAdapter`: watcher lifecycle interface.
+- `NioFileWatcherAdapter`: `WatchService` implementation.
+- `WatcherEventMapper`: maps raw watcher events to `IngestionContract`.
+- `EventIngressQueue`: bounded blocking queue for ingress pressure control.
+- `EventPipeline`: validates, orders, enqueues, and marks processed events.
+- `ProcessedEventStore`: processed marker contract.
+- `FileProcessedEventStore`: file-backed processed marker implementation.
 
-- `RawWatcherEvent`:
-  - Raw watcher event model (`CREATE`, `MODIFY`, `DELETE`).
-- `FileWatcherAdapter`:
-  - Watcher lifecycle contract (`start`, `stop`, `isRunning`).
-- `NioFileWatcherAdapter`:
-  - `WatchService` implementation that listens to source roots.
-- `WatcherEventMapper`:
-  - Converts `RawWatcherEvent` to validated `IngestionContract`.
-- `EventIngressQueue`:
-  - Bounded queue for ingestion events.
-- `EventPipeline`:
-  - Accepts validated events and records processed state.
-- `ProcessedEventStore`:
-  - Processed-state abstraction for restart continuity.
-- `FileProcessedEventStore`:
-  - Properties-file implementation for local processed state.
+## 3) Reconciliation and health (`sync`)
 
-## 3) Reconciliation and drift closure (`sync`)
+- `SourceSnapshot`: captured source file state.
+- `SourceSnapshotStore`: snapshot persistence contract.
+- `FileSourceSnapshotStore`: file-backed snapshot store.
+- `DriftDetector` + `DriftResult`: computes created/modified/deleted deltas.
+- `ReconciliationScanner`: drift scan + corrective event emission.
+- `ReconciliationRunResult`: per-run counters.
+- `ReconciliationMetrics`: aggregate reconciliation counters.
+- `ReconciliationScheduler`: fixed-delay scanner runner.
+- `RuntimeHealthService`: builds runtime health snapshots.
+- `RuntimeHealthReport`: watcher/scheduler/queue/failed-source health record.
 
-- `SourceSnapshot`:
-  - Captured file state for a tenant/source root.
-- `SourceSnapshotStore`:
-  - Snapshot persistence contract.
-- `FileSourceSnapshotStore`:
-  - Local file-backed snapshot store.
-- `DriftDetector` + `DriftResult`:
-  - Compares snapshots and classifies created/modified/deleted/unchanged paths.
-- `ReconciliationScanner`:
-  - Runs periodic scan, detects drift, emits corrective ingestion events.
-- `ReconciliationRunResult`:
-  - Run summary counters.
-- `ReconciliationMetrics`:
-  - In-memory run counters.
-- `ReconciliationScheduler`:
-  - Fixed-delay scheduler for reconciliation runs.
+## 4) Metadata profiling (`metadata`, `model`)
 
-## 4) Metadata profiling and registry (`metadata`, `model`)
+- `FingerprintCalculator`: deterministic metadata fingerprint (`SHA-256`).
+- `FormatProfiler`: builds `DirectoryMetadataProfile`.
+- `MetadataRegistry`: profile/history contract.
+- `FileMetadataRegistry`: file-backed metadata registry.
+- `DirectoryMetadataProfile`: current profile record.
+- `FormatFingerprint`: algorithm + fingerprint value.
+- `MetadataVersionRecord`: metadata history record.
+- `DirectoryMetadata`: source directory metadata model.
 
-- `FingerprintCalculator`:
-  - Computes deterministic structural fingerprint (`SHA-256`).
-- `FormatProfiler`:
-  - Builds `DirectoryMetadataProfile` from metadata + structural keys.
-- `DirectoryMetadataProfile`:
-  - Versioned metadata profile per tenant directory.
-- `FormatFingerprint`:
-  - Fingerprint value + algorithm descriptor.
-- `MetadataVersionRecord`:
-  - Version-history record for metadata changes.
-- `MetadataRegistry`:
-  - Registry contract (`upsertProfile`, `getLatest`, `history`).
-- `FileMetadataRegistry`:
-  - Local file-backed latest+history metadata store.
+## 5) Format and transform pipeline (`format`, `transform`, `model`)
 
-## 5) App wiring (`app`)
+- `FormatPlugin`: plugin contract (`detect`, `parse`, `map`, `validate`).
+- `FormatPluginRegistry`: plugin registration and best-match resolution.
+- `FormatDetectionResult`: plugin support/score result model.
+- `FormatParseException`: parse-stage error.
+- `CanonicalTransformer`: transform interface for source to canonical.
+- `PluginCanonicalTransformer`: plugin-backed transform implementation.
+- `CanonicalOutputValidator`: canonical output invariant checks.
+- `CanonicalValidationResult`: canonical validation result model.
+- `TransformException`: transform-stage error.
+- `SourceDocument` -> `ParsedDocument` -> `CanonicalDocument`: transform model
+  chain.
 
-- `Application`:
-  - Initializes:
-    - contract validation + tenant path safety,
-    - sync pipeline dependencies,
-    - reconciliation dependencies,
-    - metadata registry/profiler dependencies.
-  - Currently initializes components; runtime orchestration is still iterative.
+## 6) Publish/delete and parity checks (`transform`, `storage`, `model`)
 
-## Runtime flow (current)
+- `PublishCoordinator`: persists canonical output and publish state.
+- `DeleteCoordinator`: writes tombstone, applies canonical delete, marks index
+  deleted.
+- `CanonicalDocumentStore` + `FileCanonicalDocumentStore`: canonical store
+  contract + implementation.
+- `IndexPublishStateStore` + `FileIndexPublishStateStore`: publish-state
+  contract + implementation.
+- `TombstoneStore` + `FileTombstoneStore`: tombstone contract + implementation.
+- `ProvenanceStore` + `FileProvenanceStore`: source/canonical linkage contract
+  + implementation.
+- `ConsistencyChecker` + `ConsistencyReport`: parity checks across canonical,
+  index, and tombstone states.
+- `AtomicFileWriter`: atomic file writes used by file-backed stores.
+- `PublishStateRecord`, `TombstoneRecord`, `ProvenanceRecord`, `DeletePolicy`:
+  persistence domain records.
 
-1. Source changes are observed by watcher (`NioFileWatcherAdapter`).
-2. Raw events are mapped (`WatcherEventMapper`) to `IngestionContract`.
-3. Contract is validated (`IngestionContractValidator`) and queued (`EventIngressQueue`).
-4. Pipeline (`EventPipeline`) drains and marks processed state.
-5. Reconciliation (`ReconciliationScanner`) periodically scans source roots,
-   detects drift (`DriftDetector`), and re-emits corrective events through the
-   same pipeline.
-6. Metadata profiling (`FormatProfiler`) and registry (`FileMetadataRegistry`)
-   persist directory-level format metadata and version history.
+## 7) Application wiring (`app`)
 
-## Design rules followed by classes
+- `Application` composes all major components:
+  - ingestion validator, path policy/resolver, queue, pipeline;
+  - reconciliation scanner/scheduler/metrics;
+  - metadata profiler and registry;
+  - plugin registry and canonical transformer;
+  - provenance/canonical/index/tombstone stores;
+  - publish/delete coordinators;
+  - runtime health and consistency checker.
 
-- Tenant isolation is enforced at path and registry boundaries.
-- Validation happens before processing.
-- Errors are explicit and typed; no silent exception swallowing.
-- Local persistence is used for state continuity (processed events, snapshots,
-  metadata profiles/history).
+## Runtime interactions (current)
+
+1. Filesystem changes are observed (`NioFileWatcherAdapter`) as
+   `RawWatcherEvent`.
+2. `WatcherEventMapper` converts raw events to `IngestionContract`.
+3. `EventPipeline.accept()` validates and enqueues to `EventIngressQueue`.
+4. `EventPipeline.drainAndMarkProcessed()` drains and marks processed state.
+5. Reconciliation runs periodically:
+   `ReconciliationScheduler` -> `ReconciliationScanner` -> `DriftDetector`.
+6. Drift emits corrective ingestion events back through the same pipeline.
+7. Metadata path computes directory profiles:
+   `FingerprintCalculator` + `FormatProfiler` -> `MetadataRegistry`.
+8. Canonicalization path resolves plugins and transforms:
+   `FormatPluginRegistry` + `PluginCanonicalTransformer`.
+9. Publish/delete path updates canonical/index/tombstone stores via
+   `PublishCoordinator` and `DeleteCoordinator`.
+10. Operational visibility is provided by `RuntimeHealthService` and
+    `ConsistencyChecker`.
+
+## Design constraints reflected in classes
+
+- Tenant/path validation is applied before persistence.
+- File-backed stores keep runtime state restart-safe.
+- Transformation and publish/delete concerns are isolated by contracts.
+- Reconciliation reuses the same ingestion pipeline for consistency.
+- Health and consistency are explicit services.
